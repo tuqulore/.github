@@ -9,8 +9,7 @@ runs:
       git config user.name "${{ github.actor }}"
       git config user.email "${{ github.actor }}@users.noreply.github.com"
       shell: bash
-    - if: steps.format.outputs.RESULT != ''
-      name: Commit a diff
+    - name: Commit a diff
       run: |
         git commit -am "format [skip ci]" && git push origin HEAD
       shell: bash
