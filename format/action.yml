@@ -1,0 +1,14 @@
+name: Format
+description: Format sources
+runs:
+  using: composite
+  steps:
+    - run: |
+        pnpm format
+        echo "RESULT=${git diff --shortstat)" >> $GITHUB_OUTPUT
+      shell: bash
+    - if: steps.format.outputs.RESULT != ""
+      name: Commit a diff
+      run: |
+        git -c "user.name=${{ github.actor }}" -c "user.email=${{ github.actor }}@users.noreply.github.com" commit -a -m "format [skip ci]"
+      shell: bash
