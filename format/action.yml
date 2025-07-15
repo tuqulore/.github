@@ -4,6 +4,7 @@ runs:
   using: composite
   steps:
     - run: pnpm format
+      shell: bash
     - name: Setup Git Config
       run: |
       git config user.name "${{ github.actor }}"
