@@ -12,5 +12,5 @@ runs:
       shell: bash
     - name: Commit a diff
       run: |
-        git commit -am "format [skip ci]" && git push origin HEAD
+        git commit -am "format [skip ci]" && git push origin HEAD:${{ github.ref }}
       shell: bash
