@@ -3,12 +3,17 @@ description: Format sources
 runs:
   using: composite
   steps:
-    - run: |
-        pnpm format
-        echo "RESULT=${git diff --shortstat)" >> $GITHUB_OUTPUT
+    - run: pnpm format
       shell: bash
-    - if: steps.format.outputs.RESULT != ''
-      name: Commit a diff
+    - name: Setup Git Config
       run: |
-        git -c "user.name=${{ github.actor }}" -c "user.email=${{ github.actor }}@users.noreply.github.com" commit -a -m "format [skip ci]"
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+      shell: bash
+    - name: Commit a diff
+      run: |
+        if git commit -am "format [skip ci]"
+        then
+          git push origin HEAD:${{ github.ref }}
+        fi
       shell: bash
