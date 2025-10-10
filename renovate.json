@@ -1,5 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Default preset for tuqulore repos",
   "extends": ["config:best-practices", "config:semverAllMonthly"],
   "packageRules": [
     {
