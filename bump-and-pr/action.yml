@@ -1,0 +1,91 @@
+name: Bump and PR
+description: Bump a package version on a dedicated branch and open a pull request
+inputs:
+  branch:
+    description: Branch name to create and force-push (e.g. "release", "alpha").
+    required: true
+  bump-command:
+    description: Shell command that bumps the version in-place without tagging or committing.
+    required: true
+  version-command:
+    description: Shell command that prints the current version to stdout.
+    required: false
+    default: node -p "require('./package.json').version"
+  commit-prefix:
+    description: Conventional commit scope used for the commit message and PR title (e.g. "chore(release)").
+    required: true
+  pre-commit-command:
+    description: Optional shell command to run after the bump and before the commit (e.g. to update template files).
+    required: false
+    default: ''
+  pr-base:
+    description: Base branch for the pull request.
+    required: false
+    default: main
+  pr-body:
+    description: Pull request body. The literal string ${VERSION} is replaced with the bumped version.
+    required: false
+    default: Bump to v${VERSION}
+  github-token:
+    description: Token used by gh to create the pull request.
+    required: true
+outputs:
+  version:
+    description: The bumped version.
+    value: ${{ steps.read-version.outputs.version }}
+  pr-url:
+    description: URL of the created pull request.
+    value: ${{ steps.create-pr.outputs.pr-url }}
+runs:
+  using: composite
+  steps:
+    - name: Create branch
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+      run: git checkout -b "${BRANCH}"
+
+    - name: Bump version
+      shell: bash
+      run: ${{ inputs.bump-command }}
+
+    - name: Run pre-commit command
+      if: inputs.pre-commit-command != ''
+      shell: bash
+      run: ${{ inputs.pre-commit-command }}
+
+    - name: Read version
+      id: read-version
+      shell: bash
+      run: |
+        VERSION=$(${{ inputs.version-command }})
+        echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+    - name: Commit and push
+      shell: bash
+      env:
+        VERSION: ${{ steps.read-version.outputs.version }}
+        PREFIX: ${{ inputs.commit-prefix }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        git commit --all --message "${PREFIX}: v${VERSION}"
+        git push origin "${BRANCH}"
+
+    - name: Create pull request
+      id: create-pr
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ steps.read-version.outputs.version }}
+        PREFIX: ${{ inputs.commit-prefix }}
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.pr-base }}
+        BODY_TEMPLATE: ${{ inputs.pr-body }}
+      run: |
+        BODY="${BODY_TEMPLATE//\$\{VERSION\}/$VERSION}"
+        PR_URL=$(gh pr create \
+          --base "${BASE}" \
+          --head "${BRANCH}" \
+          --title "${PREFIX}: v${VERSION}" \
+          --body "${BODY}")
+        echo "pr-url=${PR_URL}" >> "$GITHUB_OUTPUT"
