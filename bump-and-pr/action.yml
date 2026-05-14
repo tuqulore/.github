@@ -47,18 +47,24 @@ runs:
 
     - name: Bump version
       shell: bash
-      run: ${{ inputs.bump-command }}
+      env:
+        BUMP_COMMAND: ${{ inputs.bump-command }}
+      run: bash -c "$BUMP_COMMAND"
 
     - name: Run pre-commit command
       if: inputs.pre-commit-command != ''
       shell: bash
-      run: ${{ inputs.pre-commit-command }}
+      env:
+        PRE_COMMIT_COMMAND: ${{ inputs.pre-commit-command }}
+      run: bash -c "$PRE_COMMIT_COMMAND"
 
     - name: Read version
       id: read-version
       shell: bash
+      env:
+        VERSION_COMMAND: ${{ inputs.version-command }}
       run: |
-        VERSION=$(${{ inputs.version-command }})
+        VERSION=$(bash -c "$VERSION_COMMAND")
         echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push
@@ -68,7 +74,8 @@ runs:
         PREFIX: ${{ inputs.commit-prefix }}
         BRANCH: ${{ inputs.branch }}
       run: |
-        git commit --all --message "${PREFIX}: v${VERSION}"
+        git add -A
+        git commit --message "${PREFIX}: v${VERSION}"
         git push origin "${BRANCH}"
 
     - name: Create pull request
