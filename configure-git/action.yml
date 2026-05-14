@@ -1,0 +1,9 @@
+name: Configure Git
+description: Configure git user.name and user.email for commits in CI
+runs:
+  using: composite
+  steps:
+    - run: |
+        git config user.name "${{ github.actor }}"
+        git config user.email "${{ github.actor }}@users.noreply.github.com"
+      shell: bash
