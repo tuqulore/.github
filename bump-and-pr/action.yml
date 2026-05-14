@@ -2,7 +2,7 @@ name: Bump and PR
 description: Bump a package version on a dedicated branch and open a pull request
 inputs:
   branch:
-    description: Branch name to create and force-push (e.g. "release", "alpha").
+    description: Branch name to create and push (e.g. "release", "alpha").
     required: true
   bump-command:
     description: Shell command that bumps the version in-place without tagging or committing.
