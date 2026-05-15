@@ -28,9 +28,7 @@ jobs:
     outputs:
       tag-exists: ${{ steps.check-tag.outputs.tag-exists }}
     steps:
-      - uses: tuqulore/.github/setup@main
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Check if tag already exists
         id: check-tag
@@ -57,6 +55,26 @@ jobs:
 
       - uses: tuqulore/.github/configure-git@main
 
+      # 公開物とタグの指すコミットを完全に一致させるため、対象 SHA を
+      # detached HEAD で checkout してから publish と tag を行う。
+      # pull_request 起動時は actions/checkout が refs/pull/X/merge を
+      # checkout するため、実際の merge_commit_sha とは別コミットになる。
+      # 本ジョブ実行中にデフォルトブランチが先に進んでも、リリース PR が
+      # 指すコミットに対して publish/tag できる。
+      # workflow_dispatch では merge_commit_sha がないので、デフォルト
+      # ブランチの最新 HEAD を対象にする。
+      - name: Checkout target sha for publishing
+        env:
+          DEFAULT_BRANCH: $default-branch
+        run: |
+          git fetch origin "${DEFAULT_BRANCH}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          else
+            SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
+          fi
+          git checkout "${SHA}"
+
       # npm への公開は npm Trusted Publishing (OIDC) 経由を前提としている。
       # 利用パッケージごとに npm 側で Trusted Publisher（このリポジトリの
       # publish ワークフロー）を登録しておくこと。トークン方式に切り替える
@@ -74,28 +92,10 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
 
-      # pull_request 起動時はリリース PR の merge_commit_sha に直接タグを打つ。
-      # 本ジョブ実行中にデフォルトブランチが先に進んでも、リリース PR が指すコミット
-      # に確実にタグが付く。workflow_dispatch では merge_commit_sha がないので、
-      # デフォルトブランチの最新 HEAD にタグを打つ（従来挙動）。
-      - name: Resolve target sha for release tag
-        id: target
-        env:
-          DEFAULT_BRANCH: $default-branch
-        run: |
-          git fetch origin "${DEFAULT_BRANCH}"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SHA="${{ github.event.pull_request.merge_commit_sha }}"
-          else
-            SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
-          fi
-          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
-
       - name: Create release tag
         run: |
-          SHA="${{ steps.target.outputs.sha }}"
-          VERSION=$(git show "${SHA}:lerna.json" | jq -r .version)
-          git tag "v${VERSION}" "${SHA}"
+          VERSION=$(jq -r .version lerna.json)
+          git tag "v${VERSION}"
           git push origin "v${VERSION}"
 
       # alpha ブランチはデフォルトブランチの最新から派生させたいので checkout し直す
