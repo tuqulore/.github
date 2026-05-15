@@ -69,18 +69,13 @@ jobs:
 
       - uses: tuqulore/.github/configure-git@main
 
-      # 公開物とタグの指すコミットを完全に一致させるため、check ジョブで
-      # 解決した SHA を detached HEAD で checkout してから publish と tag を行う。
+      # 公開物とタグの指すコミットを一致させるため、check で解決した SHA を detached HEAD で checkout する。
       - name: Checkout target sha for publishing
         env:
           SHA: ${{ needs.check.outputs.sha }}
         run: git checkout "${SHA}"
 
-      # npm への公開は npm Trusted Publishing (OIDC) 経由を前提としている。
-      # 利用パッケージごとに npm 側で Trusted Publisher（このリポジトリの
-      # publish ワークフロー）を登録しておくこと。トークン方式に切り替える
-      # 場合は、setup-node で registry-url を設定し NODE_AUTH_TOKEN を env に
-      # 渡すなど、認証セットアップを別途追加すること。
+      # npm 公開は Trusted Publishing (OIDC) 前提。npm 側で Trusted Publisher 登録が必要 (詳細は workflow-templates/README.md)。
       - name: Publish to npm
         run: |
           VERSION=$(jq -r .version lerna.json)
