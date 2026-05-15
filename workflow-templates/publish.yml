@@ -7,6 +7,10 @@ on:
       - $default-branch
   workflow_dispatch:
 
+env:
+  RELEASE_BRANCH: release
+  PRERELEASE_BRANCH: alpha
+
 permissions: {}
 
 concurrency:
@@ -19,7 +23,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event.pull_request.merged == true &&
-        github.event.pull_request.head.ref == 'release' &&
+        github.event.pull_request.head.ref == env.RELEASE_BRANCH &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         startsWith(github.event.pull_request.title, 'chore(release):')
       )
@@ -103,7 +107,7 @@ jobs:
 
       - uses: tuqulore/.github/bump-and-pr@main
         with:
-          branch: alpha
+          branch: ${{ env.PRERELEASE_BRANCH }}
           bump-command: pnpm packages:bump-version prerelease --preid alpha --yes --no-git-tag-version
           version-command: jq -r .version lerna.json
           commit-prefix: chore(alpha)
@@ -113,4 +117,4 @@ jobs:
 
       - name: Cleanup alpha branch on failure or cancellation
         if: failure() || cancelled()
-        run: git push origin :alpha || true
+        run: git push origin ":$PRERELEASE_BRANCH" || true
