@@ -13,6 +13,7 @@ jobs:
       contents: write
     steps:
       - uses: tuqulore/.github/setup@main
+      # pnpm スクリプトはリポジトリに合わせて編集する (例: pnpm -r lint / pnpm -r test、または不要なら削除)
       - run: pnpm lint
       - run: pnpm test
       - uses: tuqulore/.github/format@main
