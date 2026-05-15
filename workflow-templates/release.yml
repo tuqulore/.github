@@ -32,7 +32,7 @@ jobs:
       - name: Find previous release tag
         id: previous-tag
         run: |
-          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | { grep -v -- '-' || true; } | head -n 1)
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | { grep -v -- '-' || true; } | sed -n '1p')
           echo "tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Build changelog URL

@@ -54,6 +54,11 @@ jobs:
 
       - uses: tuqulore/.github/configure-git@main
 
+      # npm への公開は npm Trusted Publishing (OIDC) 経由を前提としている。
+      # 利用パッケージごとに npm 側で Trusted Publisher（このリポジトリの
+      # publish ワークフロー）を登録しておくこと。トークン方式に切り替える
+      # 場合は、setup-node で registry-url を設定し NODE_AUTH_TOKEN を env に
+      # 渡すなど、認証セットアップを別途追加すること。
       - name: Publish to npm
         run: |
           VERSION=$(jq -r .version lerna.json)
