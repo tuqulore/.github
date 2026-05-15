@@ -49,6 +49,10 @@ jobs:
           git fetch origin "${DEFAULT_BRANCH}"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             SHA="${{ github.event.pull_request.merge_commit_sha }}"
+            if [ -z "${SHA}" ]; then
+              echo "::error::pull_request.merge_commit_sha is empty. Re-run the workflow once the merge commit has been propagated." >&2
+              exit 1
+            fi
           else
             SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
           fi
