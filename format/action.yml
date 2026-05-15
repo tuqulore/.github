@@ -5,7 +5,7 @@ runs:
   steps:
     - run: pnpm format
       shell: bash
-    - uses: ./configure-git
+    - uses: tuqulore/.github/configure-git@main
     - name: Commit a diff
       run: |
         if git commit -am "format [skip ci]"
