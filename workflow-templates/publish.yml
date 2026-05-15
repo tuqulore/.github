@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  check:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (
@@ -23,6 +23,35 @@ jobs:
         github.event.pull_request.head.repo.full_name == github.repository &&
         startsWith(github.event.pull_request.title, 'chore(release):')
       )
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag-exists: ${{ steps.check-tag.outputs.tag-exists }}
+      sha: ${{ steps.target.outputs.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: tuqulore/.github/resolve-target-sha@main
+        id: target
+        with:
+          default-branch: $default-branch
+
+      - name: Check if tag already exists
+        id: check-tag
+        env:
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          VERSION=$(git show "${SHA}:lerna.json" | jq -r .version)
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}"; then
+            echo "tag-exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag-exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.tag-exists == 'false'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -35,39 +64,12 @@ jobs:
 
       - uses: tuqulore/.github/configure-git@main
 
-      # 公開物とタグの指すコミットを完全に一致させるため、対象 SHA を
-      # detached HEAD で checkout してから publish と tag を行う。
-      # pull_request 起動時は actions/checkout が refs/pull/X/merge を
-      # checkout するため、実際の merge_commit_sha とは別コミットになる。
-      # 本ジョブ実行中にデフォルトブランチが先に進んでも、リリース PR が
-      # 指すコミットに対して publish/tag できる。
-      # workflow_dispatch では merge_commit_sha がないので、デフォルト
-      # ブランチの最新 HEAD を対象にする。
+      # 公開物とタグの指すコミットを完全に一致させるため、check ジョブで
+      # 解決した SHA を detached HEAD で checkout してから publish と tag を行う。
       - name: Checkout target sha for publishing
         env:
-          DEFAULT_BRANCH: $default-branch
-        run: |
-          git fetch origin "${DEFAULT_BRANCH}"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SHA="${{ github.event.pull_request.merge_commit_sha }}"
-            if [ -z "${SHA}" ]; then
-              echo "::error::pull_request.merge_commit_sha is empty. Re-run the workflow once the merge commit has been propagated." >&2
-              exit 1
-            fi
-          else
-            SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
-          fi
-          git checkout "${SHA}"
-
-      - name: Check if tag already exists
-        id: check-tag
-        run: |
-          VERSION=$(jq -r .version lerna.json)
-          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}"; then
-            echo "tag-exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag-exists=false" >> "$GITHUB_OUTPUT"
-          fi
+          SHA: ${{ needs.check.outputs.sha }}
+        run: git checkout "${SHA}"
 
       # npm への公開は npm Trusted Publishing (OIDC) 経由を前提としている。
       # 利用パッケージごとに npm 側で Trusted Publisher（このリポジトリの
@@ -75,7 +77,6 @@ jobs:
       # 場合は、setup-node で registry-url を設定し NODE_AUTH_TOKEN を env に
       # 渡すなど、認証セットアップを別途追加すること。
       - name: Publish to npm
-        if: steps.check-tag.outputs.tag-exists == 'false'
         run: |
           VERSION=$(jq -r .version lerna.json)
           if [[ "$VERSION" == *"-alpha."* ]]; then
@@ -88,7 +89,6 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
 
       - name: Create release tag
-        if: steps.check-tag.outputs.tag-exists == 'false'
         run: |
           VERSION=$(jq -r .version lerna.json)
           git tag "v${VERSION}"
@@ -96,14 +96,12 @@ jobs:
 
       # alpha ブランチはデフォルトブランチの最新から派生させたいので checkout し直す
       - name: Checkout default branch for alpha bump
-        if: steps.check-tag.outputs.tag-exists == 'false'
         env:
           DEFAULT_BRANCH: $default-branch
         run: |
           git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
 
       - uses: tuqulore/.github/bump-and-pr@main
-        if: steps.check-tag.outputs.tag-exists == 'false'
         with:
           branch: alpha
           bump-command: pnpm packages:bump-version prerelease --preid alpha --yes --no-git-tag-version
@@ -114,5 +112,5 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Cleanup alpha branch on failure or cancellation
-        if: (failure() || cancelled()) && steps.check-tag.outputs.tag-exists == 'false'
+        if: failure() || cancelled()
         run: git push origin :alpha || true
