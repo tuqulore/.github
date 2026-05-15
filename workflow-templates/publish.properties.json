@@ -1,0 +1,5 @@
+{
+  "name": "Publish (npm, lerna monorepo)",
+  "description": "lerna monorepo を npm に公開し、リリースタグを作成して alpha バンプ PR を起こすワークフロー。chore(release): で始まるリリース PR のマージで起動する。",
+  "categories": ["Deployment", "TypeScript", "JavaScript", "Node"]
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Release (lerna monorepo)",
+  "description": "lerna monorepo 向けに、指定した semver でバージョンを bump して release ブランチでリリース PR を作成するワークフロー。手動 (workflow_dispatch) で起動する。",
+  "categories": ["Deployment", "TypeScript", "JavaScript", "Node"]
+}

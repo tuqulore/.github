@@ -1,0 +1,77 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      semver:
+        description: next semantic version(s) value
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  RELEASE_BRANCH: release
+  RELEASE_COMMIT_PREFIX: chore(release)
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: tuqulore/.github/setup@main
+        with:
+          fetch-depth: 0
+
+      - uses: tuqulore/.github/configure-git@main
+
+      - name: Find previous release tag
+        id: previous-tag
+        run: |
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | { grep -v -- '-' || true; } | sed -n '1p')
+          echo "tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build changelog URL
+        id: changelog
+        env:
+          PREVIOUS_TAG: ${{ steps.previous-tag.outputs.tag }}
+        run: |
+          if [ -n "${PREVIOUS_TAG}" ]; then
+            URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${RELEASE_BRANCH}"
+          else
+            URL="https://github.com/${{ github.repository }}/commits/${RELEASE_BRANCH}"
+          fi
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+      - uses: tuqulore/.github/bump-and-pr@main
+        with:
+          branch: ${{ env.RELEASE_BRANCH }}
+          bump-command: pnpm packages:bump-version ${{ inputs.semver }} --yes --no-git-tag-version
+          version-command: jq -r .version lerna.json
+          commit-prefix: ${{ env.RELEASE_COMMIT_PREFIX }}
+          pr-base: $default-branch
+          pr-body: |
+            Release v${VERSION}
+
+            **Full Changelog**: ${{ steps.changelog.outputs.url }}
+          github-token: ${{ github.token }}
+
+      - name: Cleanup on failure or cancellation
+        if: failure() || cancelled()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: $default-branch
+        run: |
+          EXISTING_PR=$(gh pr list --base "$DEFAULT_BRANCH" --head "$RELEASE_BRANCH" --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [ -n "$EXISTING_PR" ]; then
+            gh pr close "$EXISTING_PR" || true
+          fi
+          git push origin ":$RELEASE_BRANCH" || true

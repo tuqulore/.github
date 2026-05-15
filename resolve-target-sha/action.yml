@@ -1,0 +1,34 @@
+name: Resolve target sha
+description: |
+  Resolve the commit SHA to use for publishing/tagging based on the workflow
+  trigger event. For pull_request events the merge_commit_sha is used; for
+  workflow_dispatch (or any other event) the latest origin/<default-branch>
+  HEAD is used. Fetches origin/<default-branch> first so the SHA is reachable
+  for subsequent git operations (git show, git tag, git checkout).
+inputs:
+  default-branch:
+    description: Default branch name to fetch and to use as fallback.
+    required: true
+outputs:
+  sha:
+    description: Resolved commit SHA.
+    value: ${{ steps.resolve.outputs.sha }}
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        DEFAULT_BRANCH: ${{ inputs.default-branch }}
+      run: |
+        git fetch origin "${DEFAULT_BRANCH}"
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          if [ -z "${SHA}" ]; then
+            echo "::error::pull_request.merge_commit_sha is empty. Re-run the workflow once the merge commit has been propagated." >&2
+            exit 1
+          fi
+        else
+          SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
+        fi
+        echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
