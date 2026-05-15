@@ -62,17 +62,39 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
 
+      # pull_request 起動時はリリース PR の merge_commit_sha に直接タグを打つ。
+      # 本ジョブ実行中にデフォルトブランチが先に進んでも、リリース PR が指すコミット
+      # に確実にタグが付く。workflow_dispatch では merge_commit_sha がないので、
+      # デフォルトブランチの最新 HEAD にタグを打つ（従来挙動）。
+      - name: Resolve target sha for release tag
+        id: target
+        env:
+          DEFAULT_BRANCH: $default-branch
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          else
+            git fetch --depth=1 origin "${DEFAULT_BRANCH}"
+            SHA=$(git rev-parse "origin/${DEFAULT_BRANCH}")
+          fi
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Create release tag
+        run: |
+          SHA="${{ steps.target.outputs.sha }}"
+          git fetch origin "${SHA}"
+          VERSION=$(git show "${SHA}:lerna.json" | jq -r .version)
+          git tag "v${VERSION}" "${SHA}"
+          git push origin "v${VERSION}"
+
+      # alpha ブランチはデフォルトブランチの最新から派生させたいので checkout し直す
+      - name: Checkout default branch for alpha bump
         env:
           DEFAULT_BRANCH: $default-branch
         run: |
           git checkout "${DEFAULT_BRANCH}"
           git pull origin "${DEFAULT_BRANCH}"
-          VERSION=$(jq -r .version lerna.json)
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
 
-      # 直前の "Create release tag" がデフォルトブランチを checkout 済みのため、そこから alpha ブランチを作成する
       - uses: tuqulore/.github/bump-and-pr@main
         with:
           branch: alpha
