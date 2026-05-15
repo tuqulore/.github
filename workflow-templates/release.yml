@@ -32,8 +32,20 @@ jobs:
       - name: Find previous release tag
         id: previous-tag
         run: |
-          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v -- '-' | head -n 1)
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | { grep -v -- '-' || true; } | head -n 1)
           echo "tag=${PREVIOUS_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build changelog URL
+        id: changelog
+        env:
+          PREVIOUS_TAG: ${{ steps.previous-tag.outputs.tag }}
+        run: |
+          if [ -n "${PREVIOUS_TAG}" ]; then
+            URL="https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...release"
+          else
+            URL="https://github.com/${{ github.repository }}/commits/release"
+          fi
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
 
       - uses: tuqulore/.github/bump-and-pr@main
         with:
@@ -45,7 +57,7 @@ jobs:
           pr-body: |
             Release v${VERSION}
 
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.previous-tag.outputs.tag }}...release
+            **Full Changelog**: ${{ steps.changelog.outputs.url }}
           github-token: ${{ github.token }}
 
       - name: Cleanup on failure or cancellation
