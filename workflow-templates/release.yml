@@ -41,6 +41,7 @@ jobs:
           bump-command: pnpm packages:bump-version ${{ inputs.semver }} --yes --no-git-tag-version
           version-command: jq -r .version lerna.json
           commit-prefix: chore(release)
+          pr-base: $default-branch
           pr-body: |
             Release v${VERSION}
 

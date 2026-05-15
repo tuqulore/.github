@@ -79,6 +79,7 @@ jobs:
           bump-command: pnpm packages:bump-version prerelease --preid alpha --yes --no-git-tag-version
           version-command: jq -r .version lerna.json
           commit-prefix: chore(alpha)
+          pr-base: $default-branch
           pr-body: Bump to alpha version v${VERSION}
           github-token: ${{ github.token }}
 
