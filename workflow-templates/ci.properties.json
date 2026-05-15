@@ -1,0 +1,5 @@
+{
+  "name": "tuqulore CI",
+  "description": "pnpm lint と pnpm test を実行し、フォーマット差分を自動コミットする tuqulore 標準の CI ワークフロー。",
+  "categories": ["Continuous integration", "TypeScript", "JavaScript", "Node"]
+}

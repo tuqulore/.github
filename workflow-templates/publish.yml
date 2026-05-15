@@ -1,0 +1,87 @@
+name: Publish
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - $default-branch
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'chore(release):'))
+    runs-on: ubuntu-24.04
+    outputs:
+      tag-exists: ${{ steps.check-tag.outputs.tag-exists }}
+    steps:
+      - uses: tuqulore/.github/setup@main
+        with:
+          fetch-depth: 0
+
+      - name: Check if tag already exists
+        id: check-tag
+        run: |
+          VERSION=$(jq -r .version lerna.json)
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}"; then
+            echo "tag-exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag-exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.tag-exists == 'false'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: tuqulore/.github/setup@main
+        with:
+          fetch-depth: 0
+
+      - uses: tuqulore/.github/configure-git@main
+
+      - name: Publish to npm
+        run: |
+          VERSION=$(jq -r .version lerna.json)
+          if [[ "$VERSION" == *"-alpha."* ]]; then
+            DIST_TAG="alpha"
+          else
+            DIST_TAG="latest"
+          fi
+          pnpm packages:publish --yes --dist-tag "${DIST_TAG}"
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Create release tag
+        env:
+          DEFAULT_BRANCH: $default-branch
+        run: |
+          git checkout "${DEFAULT_BRANCH}"
+          git pull origin "${DEFAULT_BRANCH}"
+          VERSION=$(jq -r .version lerna.json)
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      # 直前の "Create release tag" がデフォルトブランチを checkout 済みのため、そこから alpha ブランチを作成する
+      - uses: tuqulore/.github/bump-and-pr@main
+        with:
+          branch: alpha
+          bump-command: pnpm packages:bump-version prerelease --preid alpha --yes --no-git-tag-version
+          version-command: jq -r .version lerna.json
+          commit-prefix: chore(alpha)
+          pr-body: Bump to alpha version v${VERSION}
+          github-token: ${{ github.token }}
+
+      - name: Cleanup alpha branch on failure or cancellation
+        if: failure() || cancelled()
+        run: git push origin :alpha || true
