@@ -63,9 +63,9 @@ jobs:
       - name: Cleanup on failure or cancellation
         if: failure() || cancelled()
         run: |
-          EXISTING_PR=$(gh pr list --base "$DEFAULT_BRANCH" --head release --json number --jq '.[0].number // empty' 2>/dev/null)
+          EXISTING_PR=$(gh pr list --base "$DEFAULT_BRANCH" --head release --json number --jq '.[0].number // empty' 2>/dev/null || true)
           if [ -n "$EXISTING_PR" ]; then
-            gh pr close "$EXISTING_PR"
+            gh pr close "$EXISTING_PR" || true
           fi
           git push origin :release || true
         env:
