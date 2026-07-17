@@ -26,6 +26,10 @@ inputs:
     description: Pull request body. The literal string ${VERSION} is replaced with the bumped version.
     required: false
     default: Bump to v${VERSION}
+  pr-labels:
+    description: Comma or newline separated labels to add to the pull request. The labels must already exist in the repository.
+    required: false
+    default: ''
   github-token:
     description: Token used by gh to create the pull request.
     required: true
@@ -88,11 +92,19 @@ runs:
         BRANCH: ${{ inputs.branch }}
         BASE: ${{ inputs.pr-base }}
         BODY_TEMPLATE: ${{ inputs.pr-body }}
+        LABELS: ${{ inputs.pr-labels }}
       run: |
         BODY="${BODY_TEMPLATE//\$\{VERSION\}/$VERSION}"
+        LABEL_ARGS=()
+        while IFS= read -r LABEL; do
+          LABEL="${LABEL#"${LABEL%%[![:space:]]*}"}"
+          LABEL="${LABEL%"${LABEL##*[![:space:]]}"}"
+          [ -n "${LABEL}" ] && LABEL_ARGS+=(--label "${LABEL}")
+        done < <(printf '%s\n' "${LABELS}" | tr ',' '\n')
         PR_URL=$(gh pr create \
           --base "${BASE}" \
           --head "${BRANCH}" \
           --title "${PREFIX}: v${VERSION}" \
-          --body "${BODY}")
+          --body "${BODY}" \
+          "${LABEL_ARGS[@]}")
         echo "pr-url=${PR_URL}" >> "$GITHUB_OUTPUT"

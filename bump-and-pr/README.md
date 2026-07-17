@@ -53,6 +53,18 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
     github-token: ${{ github.token }}
 ```
 
+### PR にラベルを付ける例
+
+```yaml
+- uses: tuqulore/.github/bump-and-pr@main
+  with:
+    branch: release
+    bump-command: npm version patch --no-git-tag-version
+    commit-prefix: chore(release)
+    pr-labels: release, automated
+    github-token: ${{ github.token }}
+```
+
 ### pre-commit-command でテンプレートファイルを更新する例
 
 ```yaml
@@ -81,6 +93,7 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
 | `pre-commit-command` |      | `''`                                            | バンプ後・コミット前に実行する任意のシェルコマンド                               |
 | `pr-base`            |      | `main`                                          | PR のベースブランチ                                                              |
 | `pr-body`            |      | `Bump to v${VERSION}`                           | PR 本文。`${VERSION}` がバンプ後のバージョンに置換される                         |
+| `pr-labels`          |      | `''`                                            | PR に付与するラベル。カンマまたは改行区切り。ラベルはリポジトリに存在済みであること |
 | `github-token`       | ✓    | -                                               | `gh pr create` で使用するトークン                                                |
 
 ## 出力
@@ -98,7 +111,7 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
 4. `version-command` でバージョンを取得
 5. 新規ファイルを含む全変更をコミット（メッセージ: `${commit-prefix}: v${VERSION}`）
 6. リモートへ push
-7. `gh pr create` で PR を作成（タイトル: `${commit-prefix}: v${VERSION}`）
+7. `gh pr create` で PR を作成（タイトル: `${commit-prefix}: v${VERSION}`）。`pr-labels` が指定されていればラベルを付与
 
 ## 注意事項
 
