@@ -1,5 +1,12 @@
 name: Format
 description: Format sources
+outputs:
+  pushed:
+    description: >-
+      'true' if a format diff was committed and pushed, otherwise 'false'.
+      Use it to start required-check workflows with workflow_dispatch from a separate job,
+      because pushes made with GITHUB_TOKEN do not trigger other workflows.
+    value: ${{ steps.commit.outputs.pushed }}
 runs:
   using: composite
   steps:
@@ -15,25 +22,7 @@ runs:
         then
           git push origin "HEAD:${REF}"
           echo "pushed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
         fi
-      shell: bash
-    # GITHUB_TOKEN による push では他のワークフローが起動しないため、push したコミットに対して
-    # 実行中のワークフロー自身を workflow_dispatch で起動し直す。
-    # 呼び出し側のワークフローには workflow_dispatch トリガーと actions: write 権限が必要。
-    # workflow_dispatch で起動された実行からは再度 dispatch しない (無限ループ防止)。
-    - name: Dispatch this workflow for the pushed commit
-      if: >-
-        steps.commit.outputs.pushed == 'true' &&
-        github.event_name != 'workflow_dispatch' &&
-        startsWith(github.ref, 'refs/heads/')
-      env:
-        GH_TOKEN: ${{ github.token }}
-        REPOSITORY: ${{ github.repository }}
-        WORKFLOW_REF: ${{ github.workflow_ref }}
-        BRANCH: ${{ github.ref_name }}
-      run: |
-        # github.workflow_ref は "owner/repo/.github/workflows/ci.yml@refs/heads/main" の形式
-        WORKFLOW_PATH="${WORKFLOW_REF%%@refs/*}"
-        WORKFLOW_FILE="${WORKFLOW_PATH##*/}"
-        gh workflow run "${WORKFLOW_FILE}" --repo "${REPOSITORY}" --ref "${BRANCH}"
       shell: bash

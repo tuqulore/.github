@@ -15,15 +15,21 @@ concurrency:
 
 jobs:
   check:
+    # workflow_dispatch はデフォルトブランチからの起動に限る。
+    # 任意のブランチで起動されると、そのブランチの依存パッケージが id-token: write を持つ publish ジョブで
+    # インストール・実行されてしまうため。
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/$default-branch'
+      ) ||
       (
         github.event.pull_request.merged == true &&
         github.event.pull_request.head.ref == 'release' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         startsWith(github.event.pull_request.title, 'chore(release):')
       )
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     outputs:
@@ -32,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: tuqulore/.github/resolve-target-sha@862223e87aebb86ee0e7e2db495d65dc441b31df # main
+      - uses: tuqulore/.github/resolve-target-sha@cc8a49114d24092c90de619edef3518534fb074e # main
         id: target
         with:
           default-branch: $default-branch
@@ -52,18 +58,17 @@ jobs:
   publish:
     needs: check
     if: needs.check.outputs.tag-exists == 'false'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
       id-token: write
       pull-requests: write
-      actions: write
     steps:
-      - uses: tuqulore/.github/setup@862223e87aebb86ee0e7e2db495d65dc441b31df # main
+      - uses: tuqulore/.github/setup@cc8a49114d24092c90de619edef3518534fb074e # main
         with:
           fetch-depth: 0
 
-      - uses: tuqulore/.github/configure-git@862223e87aebb86ee0e7e2db495d65dc441b31df # main
+      - uses: tuqulore/.github/configure-git@cc8a49114d24092c90de619edef3518534fb074e # main
 
       # 公開物とタグの指すコミットを一致させるため、check で解決した SHA を detached HEAD で checkout する。
       - name: Checkout target sha for publishing
@@ -97,7 +102,7 @@ jobs:
         run: |
           git checkout -B "${DEFAULT_BRANCH}" "origin/${DEFAULT_BRANCH}"
 
-      - uses: tuqulore/.github/bump-and-pr@862223e87aebb86ee0e7e2db495d65dc441b31df # main
+      - uses: tuqulore/.github/bump-and-pr@cc8a49114d24092c90de619edef3518534fb074e # main
         with:
           branch: alpha
           bump-command: pnpm packages:bump-version prerelease --preid alpha --yes --no-git-tag-version
@@ -105,10 +110,25 @@ jobs:
           commit-prefix: chore(alpha)
           pr-base: $default-branch
           pr-body: Bump to alpha version v${VERSION}
-          # 必須チェックを担う CI のワークフローファイル名。利用側のリポジトリに合わせて編集する
-          dispatch-workflows: ci.yml
           github-token: ${{ github.token }}
 
       - name: Cleanup alpha branch on failure or cancellation
         if: failure() || cancelled()
         run: git push origin :alpha || true
+
+  # GITHUB_TOKEN による push / PR 作成では他のワークフローが起動しないため、alpha ブランチに対して
+  # 必須チェックを担う CI を workflow_dispatch で起動する。
+  # actions: write は依存パッケージのコードを実行しないこのジョブだけに渡す。
+  dispatch-ci:
+    needs: publish
+    runs-on: ubuntu-26.04
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch CI for the alpha branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          # 必須チェックを担う CI のワークフローファイル名。利用側のリポジトリに合わせて編集する
+          CI_WORKFLOW: ci.yml
+        run: gh workflow run "${CI_WORKFLOW}" --repo "${REPOSITORY}" --ref alpha

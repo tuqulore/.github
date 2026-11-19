@@ -30,15 +30,8 @@ inputs:
     description: Comma or newline separated labels to add to the pull request. The labels must already exist in the repository.
     required: false
     default: ''
-  dispatch-workflows:
-    description: >-
-      Comma or newline separated workflow file names (e.g. "ci.yml") to start with workflow_dispatch on the branch
-      after the pull request is created, so that required checks run on the pushed commit.
-      Each workflow must have a workflow_dispatch trigger, and the token needs the actions: write permission.
-    required: false
-    default: ''
   github-token:
-    description: Token used by gh to create the pull request (and to dispatch workflows when dispatch-workflows is set).
+    description: Token used by gh to create the pull request.
     required: true
 outputs:
   version:
@@ -115,23 +108,3 @@ runs:
           --body "${BODY}" \
           "${LABEL_ARGS[@]}")
         echo "pr-url=${PR_URL}" >> "$GITHUB_OUTPUT"
-
-    # GITHUB_TOKEN による push では他のワークフローが起動しないため、必須チェックを担うワークフローを
-    # workflow_dispatch で明示的に起動する。
-    - name: Dispatch workflows
-      if: inputs.dispatch-workflows != ''
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.github-token }}
-        BRANCH: ${{ inputs.branch }}
-        WORKFLOWS: ${{ inputs.dispatch-workflows }}
-      run: |
-        WORKFLOW_FILES=()
-        while IFS= read -r WORKFLOW; do
-          WORKFLOW="${WORKFLOW#"${WORKFLOW%%[![:space:]]*}"}"
-          WORKFLOW="${WORKFLOW%"${WORKFLOW##*[![:space:]]}"}"
-          [ -n "${WORKFLOW}" ] && WORKFLOW_FILES+=("${WORKFLOW}")
-        done < <(printf '%s\n' "${WORKFLOWS}" | tr ',' '\n')
-        for WORKFLOW in "${WORKFLOW_FILES[@]}"; do
-          gh workflow run "${WORKFLOW}" --ref "${BRANCH}"
-        done
