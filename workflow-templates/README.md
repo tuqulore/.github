@@ -20,7 +20,7 @@ tuqulore 組織で共通利用するための GitHub Actions ワークフロー�
 | ---------------- | ---- |
 | [`setup`](../setup/action.yml) | `actions/checkout` + pnpm + Node.js のセットアップと `pnpm install` |
 | [`configure-git`](../configure-git/action.yml) | CI 内でのコミット用に git の user.name / user.email を設定 |
-| [`format`](../format/action.yml) | `pnpm format` を実行して差分を自動コミット。`dispatch-workflow: 'true'` で push 後に実行中のワークフロー自身を起動 |
+| [`format`](../format/action.yml) | `pnpm format` を実行して差分を自動コミットし、push 後に実行中のワークフロー自身を `workflow_dispatch` で起動 |
 | [`bump-and-pr`](../bump-and-pr) | バージョン bump → ブランチ作成 → PR 作成を 1 ステップで行う。`dispatch-workflows` で PR 作成後に指定ワークフローを起動 |
 | [`resolve-target-sha`](../resolve-target-sha/action.yml) | publish 対象の SHA を `pull_request` / `workflow_dispatch` の両イベントから解決 |
 
@@ -38,14 +38,14 @@ tuqulore 組織で共通利用するための GitHub Actions ワークフロー�
 
 | テンプレート | 起動するタイミング | 起動するワークフロー |
 | ------------ | ------------------ | -------------------- |
-| `ci.yml` | `format` がフォーマット差分をコミットして push したとき | 実行中のワークフロー自身 (`format` の `dispatch-workflow: 'true'`) |
+| `ci.yml` | `format` がフォーマット差分をコミットして push したとき | 実行中のワークフロー自身 (`format` が自動で起動) |
 | `release.yml` | `release` ブランチの PR を作成したあと | `ci.yml` (`bump-and-pr` の `dispatch-workflows`) |
 | `publish.yml` | `alpha` ブランチの PR を作成したあと | `ci.yml` (`bump-and-pr` の `dispatch-workflows`) |
 
 利用側のリポジトリでは次の点に注意する。
 
 - **必須チェック名**: ruleset の必須チェックにはジョブ名を指定する。CI テンプレートではジョブ名 `ci` がチェック名になる。`workflow_dispatch` で起動した実行のチェックも、push で起動した実行と同じ名前でコミットに付く。
-- **`workflow_dispatch` トリガー**: dispatch 先のワークフローの `on:` に `workflow_dispatch:` が必要。CI テンプレートには追加済み。CI のワークフローファイル名を `ci.yml` から変えた場合は、`release.yml` / `publish.yml` の `dispatch-workflows` も合わせて書き換える。
+- **`workflow_dispatch` トリガー**: dispatch 先のワークフローの `on:` に `workflow_dispatch:` が必要。CI テンプレートには追加済み。`format` アクションは差分を push すると必ず自身のワークフローを dispatch するため、`format` を使うワークフローには `workflow_dispatch:` と `actions: write` が必須 (ないと dispatch に失敗してジョブがエラーになる)。`format` の SHA pin をこの変更以降に更新するときは、合わせて追加する。CI のワークフローファイル名を `ci.yml` から変えた場合は、`release.yml` / `publish.yml` の `dispatch-workflows` も合わせて書き換える。
 - **`actions: write` 権限**: dispatch する側のジョブに `actions: write` が必要。各テンプレートには追加済み。
 - **無限ループ防止**: `format` アクションは `workflow_dispatch` で起動された実行からは再び dispatch しない。dispatch された CI の実行で `format` がさらに差分をコミットした場合、そのコミットには CI が走らない。`release` / `alpha` ブランチで起きないよう、bump 後のファイルがフォーマット済みになるようにしておく (必要なら `pre-commit-command` で `pnpm format` を実行する)。
 - **フォークからの PR は対象外**: CI テンプレートは `push` で起動するため、フォークからの PR では本体リポジトリの CI が走らず、自動コミットも dispatch も行われない。フォークのブランチには `GITHUB_TOKEN` で push できず、`workflow_dispatch` で起動することもできない。

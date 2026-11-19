@@ -1,14 +1,5 @@
 name: Format
 description: Format sources
-inputs:
-  dispatch-workflow:
-    description: >-
-      Set to 'true' to start the running workflow itself with workflow_dispatch on the pushed branch
-      after a format diff is committed and pushed, so that required checks run on the new commit.
-      Requires the workflow to have a workflow_dispatch trigger and the job to have the actions: write permission.
-      Runs started by workflow_dispatch never dispatch again.
-    required: false
-    default: 'false'
 runs:
   using: composite
   steps:
@@ -28,10 +19,10 @@ runs:
       shell: bash
     # GITHUB_TOKEN による push では他のワークフローが起動しないため、push したコミットに対して
     # 実行中のワークフロー自身を workflow_dispatch で起動し直す。
+    # 呼び出し側のワークフローには workflow_dispatch トリガーと actions: write 権限が必要。
     # workflow_dispatch で起動された実行からは再度 dispatch しない (無限ループ防止)。
     - name: Dispatch this workflow for the pushed commit
       if: >-
-        inputs.dispatch-workflow == 'true' &&
         steps.commit.outputs.pushed == 'true' &&
         github.event_name != 'workflow_dispatch' &&
         startsWith(github.ref, 'refs/heads/')
