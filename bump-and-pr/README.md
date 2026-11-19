@@ -11,7 +11,7 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
 - リポジトリがチェックアウト済みであること
 - git の user.name / user.email が設定済みであること（`tuqulore/.github/configure-git` を事前に呼ぶ）
 - `gh` CLI が利用可能であること（GitHub-hosted runner には標準でインストール済み）
-- workflow に `contents: write` と `pull-requests: write` 権限があること
+- workflow に `contents: write` と `pull-requests: write` 権限があること（`dispatch-workflows` を指定する場合は `actions: write` も必要）
 - `branch` に指定するブランチがローカル・リモートのいずれにも存在しないこと（同名ブランチが残っている場合は事前に削除）
 
 ### 最小例（npm の単一パッケージ）
@@ -65,6 +65,26 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
     github-token: ${{ github.token }}
 ```
 
+### PR 作成後に CI を起動する例
+
+`GITHUB_TOKEN` による push では他のワークフローが起動しないため、そのままでは PR に必須チェックが付かない。`dispatch-workflows` に必須チェックを担うワークフローのファイル名を渡すと、PR 作成後に `branch` に対して `workflow_dispatch` で起動する。起動するワークフローには `workflow_dispatch` トリガーが必要。
+
+```yaml
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+steps:
+  - uses: tuqulore/.github/bump-and-pr@main
+    with:
+      branch: release
+      bump-command: npm version patch --no-git-tag-version
+      commit-prefix: chore(release)
+      dispatch-workflows: ci.yml
+      github-token: ${{ github.token }}
+```
+
 ### pre-commit-command でテンプレートファイルを更新する例
 
 ```yaml
@@ -94,7 +114,8 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
 | `pr-base`            |      | `main`                                          | PR のベースブランチ                                                              |
 | `pr-body`            |      | `Bump to v${VERSION}`                           | PR 本文。`${VERSION}` がバンプ後のバージョンに置換される                         |
 | `pr-labels`          |      | `''`                                            | PR に付与するラベル。カンマまたは改行区切り。ラベルはリポジトリに存在済みであること |
-| `github-token`       | ✓    | -                                               | `gh pr create` で使用するトークン                                                |
+| `dispatch-workflows` |      | `''`                                            | PR 作成後に `branch` に対して `workflow_dispatch` で起動するワークフローのファイル名（例: `ci.yml`）。カンマまたは改行区切り |
+| `github-token`       | ✓    | -                                               | `gh pr create` と `gh workflow run` で使用するトークン                           |
 
 ## 出力
 
@@ -112,9 +133,11 @@ lerna / pnpm / npm / yarn / changesets など、具体的なツールには依�
 5. 新規ファイルを含む全変更をコミット（メッセージ: `${commit-prefix}: v${VERSION}`）
 6. リモートへ push
 7. `gh pr create` で PR を作成（タイトル: `${commit-prefix}: v${VERSION}`）。`pr-labels` が指定されていればラベルを付与
+8. `dispatch-workflows` が指定されていれば、各ワークフローを `gh workflow run --ref ${branch}` で起動
 
 ## 注意事項
 
 - `branch` と同名のブランチがローカルに既に存在する場合はブランチ作成（`git checkout -b`）が、リモートに既に存在する場合は push が失敗する。必要なら呼び出し側の workflow で事前にブランチを削除する（self-hosted runner では前回実行のローカルブランチが残りうる）
 - 同じ base / head の組み合わせで open 中の PR が既にある場合、`gh pr create` はエラーになる
+- `dispatch-workflows` で指定したワークフローに `workflow_dispatch` トリガーがない場合や、トークンに `actions: write` 権限がない場合は、PR 作成後に `gh workflow run` が失敗してステップがエラーになる
 - 複合アクションは `post:` ステップを持てないため、失敗時のクリーンアップ（ブランチ削除・PR クローズ）は呼び出し側の workflow で行うこと

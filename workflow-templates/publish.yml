@@ -57,6 +57,7 @@ jobs:
       contents: write
       id-token: write
       pull-requests: write
+      actions: write
     steps:
       - uses: tuqulore/.github/setup@862223e87aebb86ee0e7e2db495d65dc441b31df # main
         with:
@@ -104,6 +105,8 @@ jobs:
           commit-prefix: chore(alpha)
           pr-base: $default-branch
           pr-body: Bump to alpha version v${VERSION}
+          # 必須チェックを担う CI のワークフローファイル名。利用側のリポジトリに合わせて編集する
+          dispatch-workflows: ci.yml
           github-token: ${{ github.token }}
 
       - name: Cleanup alpha branch on failure or cancellation

@@ -1,17 +1,24 @@
 name: CI
 on:
   push:
+  # format アクションが自動コミット後にこのワークフロー自身を起動するために必要
+  workflow_dispatch:
+# format アクションが dispatch した実行 (workflow_dispatch) は、dispatch 元の実行をキャンセルせず終了を待つ。
+# dispatch された実行は、その後の push による実行にはキャンセルされる (古いコミットに対する実行のため)。
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   ci:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write
     steps:
       - uses: tuqulore/.github/setup@862223e87aebb86ee0e7e2db495d65dc441b31df # main
       # pnpm スクリプトはリポジトリに合わせて編集する (例: pnpm -r lint / pnpm -r test、または不要なら削除)
       - run: pnpm lint
       - run: pnpm test
       - uses: tuqulore/.github/format@862223e87aebb86ee0e7e2db495d65dc441b31df # main
+        with:
+          dispatch-workflow: 'true'
