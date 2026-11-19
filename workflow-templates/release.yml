@@ -71,3 +71,20 @@ jobs:
             gh pr close "$EXISTING_PR" || true
           fi
           git push origin :release || true
+
+  # GITHUB_TOKEN による push / PR 作成では他のワークフローが起動しないため、release ブランチに対して
+  # 必須チェックを担う CI を workflow_dispatch で起動する。
+  # actions: write は依存パッケージのコードを実行しないこのジョブだけに渡す。
+  dispatch-ci:
+    needs: release
+    runs-on: ubuntu-26.04
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch CI for the release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          # 必須チェックを担う CI のワークフローファイル名。利用側のリポジトリに合わせて編集する
+          CI_WORKFLOW: ci.yml
+        run: gh workflow run "${CI_WORKFLOW}" --repo "${REPOSITORY}" --ref release

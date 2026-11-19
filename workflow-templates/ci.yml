@@ -1,17 +1,49 @@
 name: CI
 on:
   push:
+  # format の自動コミット後に dispatch ジョブがこのワークフロー自身を起動するために必要
+  workflow_dispatch:
+# dispatch ジョブが起動した実行 (workflow_dispatch) は、dispatch 元の実行をキャンセルせず終了を待つ。
+# dispatch された実行は、その後の push による実行にはキャンセルされる (古いコミットに対する実行のため)。
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 jobs:
   ci:
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+    outputs:
+      pushed: ${{ steps.format.outputs.pushed }}
     steps:
       - uses: tuqulore/.github/setup@cc8a49114d24092c90de619edef3518534fb074e # main
       # pnpm スクリプトはリポジトリに合わせて編集する (例: pnpm -r lint / pnpm -r test、または不要なら削除)
       - run: pnpm lint
       - run: pnpm test
       - uses: tuqulore/.github/format@cc8a49114d24092c90de619edef3518534fb074e # main
+        id: format
+
+  # GITHUB_TOKEN による push では他のワークフローが起動しないため、format の自動コミットに対して
+  # このワークフロー自身を workflow_dispatch で起動し、必須チェックを付ける。
+  # actions: write は依存パッケージのコードを実行しないこのジョブだけに渡す。
+  # workflow_dispatch で起動された実行からは再度 dispatch しない (無限ループ防止)。
+  dispatch:
+    needs: ci
+    if: >-
+      needs.ci.outputs.pushed == 'true' &&
+      github.event_name != 'workflow_dispatch' &&
+      github.ref_type == 'branch'
+    runs-on: ubuntu-26.04
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch this workflow for the format commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          # github.workflow_ref は "owner/repo/.github/workflows/ci.yml@refs/heads/main" の形式
+          WORKFLOW_PATH="${WORKFLOW_REF%%@refs/*}"
+          gh workflow run "${WORKFLOW_PATH##*/}" --repo "${REPOSITORY}" --ref "${BRANCH}"

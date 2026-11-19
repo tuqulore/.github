@@ -1,5 +1,12 @@
 name: Format
 description: Format sources
+outputs:
+  pushed:
+    description: >-
+      'true' if a format diff was committed and pushed, otherwise 'false'.
+      Use it to start required-check workflows with workflow_dispatch from a separate job,
+      because pushes made with GITHUB_TOKEN do not trigger other workflows.
+    value: ${{ steps.commit.outputs.pushed }}
 runs:
   using: composite
   steps:
@@ -7,9 +14,15 @@ runs:
       shell: bash
     - uses: tuqulore/.github/configure-git@cc8a49114d24092c90de619edef3518534fb074e # main
     - name: Commit a diff
+      id: commit
+      env:
+        REF: ${{ github.ref }}
       run: |
         if git commit -am "format [skip ci]"
         then
-          git push origin HEAD:${{ github.ref }}
+          git push origin "HEAD:${REF}"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
         fi
       shell: bash
